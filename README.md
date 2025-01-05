@@ -30,26 +30,25 @@ This is a simple Express.js project.
 ```
 /Expressjs
 ├── app
-│   ├── controllers
-│   ├── middlewares
-│   |── modules
-|   ├── service
+│   ├── controllers           # Contains route handlers and logic for various routes
+│   ├── middlewares            # Middleware functions for request processing and validation
+│   ├── modules                # Reusable modules or services, if needed
+│   └── services               # Business logic and service layer
 ├── utilities
-│   |-─ connections
-|   |    |-- mongoCon.js
-|   |    |-- redisCon.js
-|   └── constants
-|   |    |-- jsonCons.js
-|   |── env
-|   |    |-- dev.js
-|   |-- envconfig.js
-|   |-- logger.js
-|   |-- route.js
-|   |-- utility-function.js
-|   
-├── app.js
-├── package.json
-└── README.md
+│   ├── connections            # Database and other connection utilities
+│   │    └── mongoCon.js        # MongoDB connection
+│   │    └── redisCon.js        # Redis connection
+│   ├── constants              # Constants and static values
+│   │    └── jsonCons.js        # JSON constants
+│   └── env                    # Environment-specific configurations
+│        └── dev.js            # Development environment configuration
+│        └── envconfig.js      # General environment configuration
+│        └── logger.js         # Logger utility
+│        └── route.js          # Route utility
+│        └── utility-function.js # Utility functions
+├── app.js                      # Main application file
+├── package.json                # Project configuration
+└── README.md                   # Project documentation
 ```
 
 ## Contributing
