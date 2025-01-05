@@ -26,7 +26,6 @@ This is a simple Express.js project.
 2. Open your browser and go to `http://localhost:4000`
 
 ## Project Structure
-
 ```
 /Expressjs
 ├── app
@@ -40,12 +39,11 @@ This is a simple Express.js project.
 │   │    └── redisCon.js        # Redis connection
 │   ├── constants              # Constants and static values
 │   │    └── jsonCons.js        # JSON constants
-│   └── env                    # Environment-specific configurations
-│        └── dev.js            # Development environment configuration
-│        └── envconfig.js      # General environment configuration
-│        └── logger.js         # Logger utility
-│        └── route.js          # Route utility
-│        └── utility-function.js # Utility functions
+│   ├── env                    # Environment-specific configurations
+│   │    └── dev.js            # Development environment configuration
+│   └── logger.js               # Logger utility
+│   └── route.js                # Route utility
+│   └── utility-function.js     # Utility functions
 ├── app.js                      # Main application file
 ├── package.json                # Project configuration
 └── README.md                   # Project documentation
