@@ -1,26 +1,32 @@
 const userService = require('../services/userService');
-
+const func = require('../../utilities/utility-function');
 module.exports = {
-    createRecord: createRecord,
-    displayRecord: displayRecord,
+    userRegistration: userRegistration,
+    userLogin: userLogin,
 };
 
-async function createRecord(req, res) {
-    await userService.createRecord(req.originalUrl,req.body)
+async function userRegistration(req, res) {
+    logger.info(`${func.jsonConst.LOG_ENTER} controller userRegistration()`);
+    await userService.userRegistration(req.body)
         .then((result) => {
-            res.status(200).send({ message: result });
-        })
-        .catch((error) => {
-            res.status(500).send({ error: error });
-        });
-}
-
-async function displayRecord(req, res) {
-    await userService.displayRecord(req.params)
-        .then((result) => {
+            logger.info(`${func.jsonConst.LOG_EXIT} controller userRegistration() ${func.jsonConst.LOG_SUCCESS}`);
             res.status(200).send(result);
         })
         .catch((error) => {
-            res.status(500).send({ error: error });
+            logger.error(`${func.jsonConst.LOG_EXIT} controller userRegistration() ${func.jsonConst.LOG_ERROR}`);
+            res.status(500).send(error);
+        });
+}
+
+async function userLogin(req, res) {
+    logger.info(`${func.jsonConst.LOG_ENTER} controller userRegistration()`);
+    await userService.userLogin(req.body)
+        .then((result) => {
+            logger.info(`${func.jsonConst.LOG_EXIT} controller userRegistration() ${func.jsonConst.LOG_SUCCESS}`);
+            res.status(200).send(result);
+        })
+        .catch((error) => {
+            logger.error(`${func.jsonConst.LOG_EXIT} controller userRegistration() ${func.jsonConst.LOG_ERROR}`);
+            res.status(500).send(error);
         });
 }

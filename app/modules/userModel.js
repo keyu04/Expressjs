@@ -1,7 +1,22 @@
-const mongoose = require('mongoose');
-const Records = mongoose.model('Record', new mongoose.Schema({
-    name: { type: String, required: true, trim: true }, age: { type: Number, required: true, min: 0 },
-})
-);
+const bcrypt = require('bcrypt');
 
-module.exports = Records;
+const userSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
+    role: { type: String, default: 'user' }, // user/admin
+});
+
+// Hash password before saving
+userSchema.pre('save', async function (next) {
+    if (!this.isModified('password')) return next();
+    this.password = await bcrypt.hash(this.password, 10);
+    next();
+});
+
+// Compare password
+userSchema.methods.comparePassword = async function (password) {
+    return await bcrypt.compare(password, this.password);
+};
+
+module.exports = mongoose.model('User', userSchema);

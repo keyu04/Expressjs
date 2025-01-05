@@ -4,7 +4,7 @@
     {
       "type": "node",
       "request": "launch",
-      "name": "myworld",
+      "name": "myWorld",
       "program": "${workspaceFolder}/index.js",
       "console": "integratedTerminal",
       "restart": true,
