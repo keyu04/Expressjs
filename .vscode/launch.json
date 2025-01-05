@@ -5,7 +5,7 @@
       "type": "node",
       "request": "launch",
       "name": "myWorld",
-      "program": "${workspaceFolder}/index.js",
+      "program": "${workspaceFolder}/app.js",
       "console": "integratedTerminal",
       "restart": true,
       "outFiles": ["${workspaceFolder}/**/*.js"],

@@ -4,6 +4,6 @@ module.exports = {
     LOG_CONTROLLER: 'Controller',
     LOG_SERVICE: 'Service',
     LOG_FUNCTION: 'Function',
-    LOG_SUCCESS: 'Success',
-    LOG_ERROR: 'Error',
+    LOG_SUCCESS: 'With Success',
+    LOG_ERROR: 'With Error',
 }
