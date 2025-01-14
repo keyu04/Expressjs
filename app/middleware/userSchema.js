@@ -3,7 +3,9 @@ const func = require('../../utilities/utility-function');
 
 module.exports = {
     userLogin: userLogin,
-    userRegistration: userRegistration
+    userRegistration: userRegistration,
+    userLogout: userLogout,
+    userDisplay: userDisplay
 };
 function userLogin(req, res, next) {
     const schema = joi.object().keys({
@@ -18,6 +20,20 @@ function userRegistration(req, res, next) {
         email: joi.string().email().required(),
         password: joi.string().min(6).required(),
         name: joi.string().required()
+    });
+    func.userJoiValidator(schema, req, res, next);
+}
+
+function userLogout(req, res, next) {
+    const schema = joi.object().keys({
+        userId: joi.string().required()
+    });
+    func.userJoiValidator(schema, req, res, next);
+}
+
+function userDisplay(req, res, next) {
+    const schema = joi.object().keys({
+        userId: joi.number().required()
     });
     func.userJoiValidator(schema, req, res, next);
 }

@@ -1,6 +1,8 @@
 require('./utilities/envconfig'); // for environment variables
 require('./utilities/connections/mongoCon'); // for db connection
 require('./utilities/connections/redisCon'); // for redis connection
+require('./utilities/connections/mssql'); // for mssql connection
+require('./utilities/connections/sequelize'); // for sequelize connection
 require('./utilities/logger');
 require("colors")
 const express = require('express');
@@ -14,6 +16,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
+
 app.use("/", route);
 
 
