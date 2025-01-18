@@ -1,4 +1,3 @@
-const joi = require('joi');
 
 module.exports = {
     // constants links
