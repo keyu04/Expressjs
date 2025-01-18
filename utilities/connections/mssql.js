@@ -1,10 +1,10 @@
 const sql = require('mssql');
 
 const config = {
-    user: 'sa',
-    password: '12345678',
-    server: 'LAPTOP-BO7UCVSP', // Use 'localhost' or IP address
-    database: 'Mydb',
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    server: process.env.DB_SERVER, // Use 'localhost' or IP address
+    database: process.env.DB_DATABASE,
     options: {
         encrypt: true, // Required for Azure connections
         trustServerCertificate: true, // Set to true for development; set false for production
