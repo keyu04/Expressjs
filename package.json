@@ -9,6 +9,7 @@
   "author": "Keyur Halpati",
   "license": "ISC",
   "dependencies": {
+    "basic-ftp": "^5.0.5",
     "bcrypt": "^5.1.1",
     "colors": "^1.4.0",
     "cors": "^2.8.5",
