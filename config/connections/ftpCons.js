@@ -1,5 +1,5 @@
 const ftp = require('basic-ftp');
-const func = require('../utility-function');
+const func = require('../../utilities/utility-function');
 
 async function ftpClient() {
     const client = new ftp.Client();

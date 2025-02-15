@@ -1,7 +1,7 @@
 const { DataTypes } = require('sequelize');
 
 // I created this function to wait for the database call for some time.
-const sequelizeConnection = require('../../utilities/connections/sequelize');
+const sequelizeConnection = require('../../config/connections/sequelize');
 let UserMaster;
 (async () => {
     const sequelize = await sequelizeConnection();

@@ -1,7 +1,7 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs')
-const ftp = require('../utilities/connections/ftpCons');
+const ftp = require('../config/connections/ftpCons');
 
 module.exports = {
     // constants links
@@ -24,7 +24,9 @@ module.exports = {
     upload: multer({
         storage: multer.diskStorage({
             destination: function (req, file, cb) {
-                cb(null, path.join(__dirname, '../app/assets/')); // Save files to this directory
+                const filePath = path.join(__dirname, '../app/assets/images/');
+                fs.mkdirSync(filePath, { recursive: true });
+                cb(null, path.join(__dirname, filePath)); // Save files to this directory
             },
             filename: function (req, file, cb) {
                 cb(null, `${Date.now()}-${file.originalname}`); // Custom filename
@@ -75,7 +77,7 @@ module.exports = {
     getImageBufferFromFTP: async function (remoteImagePath) {
         const self = this;
         const client = await ftp()
-        const imagePath = path.join(path.join(__dirname, '../app/assets/'), path.basename(remoteImagePath));
+        const imagePath = path.join(path.join(__dirname, '../app/assets/images/'), path.basename(remoteImagePath));
 
         try {
             await client.downloadTo(imagePath, remoteImagePath);
