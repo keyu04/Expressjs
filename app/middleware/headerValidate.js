@@ -3,6 +3,7 @@ const func = require('../../utilities/utility-function');
 
 module.exports = {
     headerValidate: async function (req, res, next) {
+        logger.info(`${func.jsonConst.LOG_ENTER} ${func.jsonConst.LOG_FUNCTION} headerValidate()`)
         const token = req.headers['token'];
         const calling_entity = req.headers['calling_entity'];
         if (!(token || calling_entity)) return res.status(401).json({ message: 'Unauthorized access or missing calling entity' });
