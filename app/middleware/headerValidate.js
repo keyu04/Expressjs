@@ -17,7 +17,7 @@ module.exports = {
                 logger.error(`${func.jsonConst.LOG_EXIT} ${func.jsonConst.LOG_FUNCTION} headerValidate() Invalid or expired session`);
                 return res.status(401).json({ message: 'Invalid or expired session' });
             }
-            logger.error(`${func.jsonConst.LOG_EXIT} ${func.jsonConst.LOG_FUNCTION} headerValidate() ${func.jsonConst.LOG_SUCCESS}`);
+            logger.info(`${func.jsonConst.LOG_EXIT} ${func.jsonConst.LOG_FUNCTION} headerValidate() ${func.jsonConst.LOG_SUCCESS}`);
             next();
         } catch (error) {
             logger.error(`${func.jsonConst.LOG_EXIT} ${func.jsonConst.LOG_FUNCTION} headerValidate() ${func.jsonConst.LOG_ERROR} =>`, error);
