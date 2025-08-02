@@ -1,6 +1,8 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs')
+const ExcelJS = require('exceljs');
+
 const ftp = require('../config/connections/ftpCons');
 
 module.exports = {
@@ -110,4 +112,18 @@ module.exports = {
     removeFile: function (reqFiles) {
         fs.unlinkSync(reqFiles);
     },
+    createExcel: async function (response) {
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('sheet');
+
+        if (response.length > 0) {
+            worksheet.columns = Object.keys(response[0]).map(key => ({
+                header: key,
+                key: key
+            }));
+            response.forEach(row => worksheet.addRow(row));
+        }
+
+        return await workbook.xlsx.writeBuffer();
+    }
 };
