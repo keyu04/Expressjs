@@ -4,6 +4,7 @@ const fs = require('fs')
 const ExcelJS = require('exceljs');
 
 const ftp = require('../config/connections/ftpCons');
+const pdf_table_extractor = require('../utilities/Pdf');
 
 module.exports = {
     // constants links
@@ -125,5 +126,14 @@ module.exports = {
         }
 
         return await workbook.xlsx.writeBuffer();
+    },
+
+    pdf_to_table: async function (filePath) {
+        try {
+            return await pdf_table_extractor(filePath)
+        } catch (error) {
+            logger.error(`${this.jsonConst.LOG_EXIT} ${this.jsonConst.LOG_FUNCTION} Error extracting table from PDF:`, error);
+            throw error;
+        }
     }
 };
