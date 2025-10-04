@@ -1,0 +1,16 @@
+· signup on AWS
+· Launch instance
+• chmod 400 <secret>.pem
+• ssh command
+• Install Node version 16.17.0
+• Git clone
+- Frontend
+	. npm install →dependencies instaln
+ 	· npm run build
+	· sudo apt update
+	· sudo apt install nginx
+	· sudo systenctI start nginx
+	· sudo systemct, enable nginx
+	· Copy code from dist(buitd files) to /var/www/html
+ 	. sudo scp -r dist/*  /var/wow/html
+        . enable port :80 
