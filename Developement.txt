@@ -9,8 +9,8 @@
  	· npm run build
 	· sudo apt update
 	· sudo apt install nginx
-	· sudo systenctI start nginx
-	· sudo systemct, enable nginx
+	· sudo systemctl start nginx
+	· sudo systemctl enable nginx
 	· Copy code from dist(buitd files) to /var/www/html
  	. sudo scp -r dist/*  /var/wow/html
-        . enable port :80 
+    . enable port :80 
