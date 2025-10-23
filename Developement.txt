@@ -14,3 +14,12 @@
 	· Copy code from dist(buitd files) to /var/www/html
  	. sudo scp -r dist/*  /var/wow/html
     . enable port :80 
+- Backend
+	. updated DB password
+ 	. allowed ec2 instance public IP on mongodb Server
+	. npm install pm2 -g
+	. pm2 start npm --name 'chat-ui' -- run dev // custom name
+	. pm2 logs, flush <id,name>, stop <id,name> delete <id,name>
+	. config nginx - /etc/nginx/sites-available/default
+	. restart nginx - sudo systemctl restart nginx
+	. modify the BASEURL in frontend project to "/api
