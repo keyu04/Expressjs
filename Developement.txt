@@ -4,6 +4,9 @@
 • ssh command
 • Install Node version 16.17.0
 • Git clone
+
+------------------------------------------------
+working with pm2 manager
 - Frontend
 	. npm install →dependencies instaln
  	· npm run build
@@ -23,3 +26,34 @@
 	. config nginx - /etc/nginx/sites-available/default
 	. restart nginx - sudo systemctl restart nginx
 	. modify the BASEURL in frontend project to "/api
+----------------------------------------------------
+working with docker
+	. login into instance
+    . install docker 
+		sudo apt update
+		sudo apt install -y ca-certificates curl gnupg lsb-release
+		curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o 				/usr/share/keyrings/docker-archive-keyring.gpg
+		echo \
+ 		"deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-			keyring.gpg] \
+ 		https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+ 		| sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+		sudo apt update
+		sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+		sudo usermod -aG docker $USER
+		# log out and back in or `newgrp docker`
+    . docker build & run (directly on EC2 instance)
+	  # on the EC2 instance, (git clone first) then in project folder
+		docker build -t <project-name>:latest .
+
+	  # run container (map host 80 → container 80)
+		docker run -d --name <project-name> -p 80:80 --restart unless-stopped <image-name(:tag->):latest>
+    . docker build & run (first local docker-hub then EC2 instence)
+	 	# locally
+		docker build -t <dockerhubuser>/<contaienr-name>:1.0  .
+		docker push <dockerhubuser>/<contaienr-name>:1.0
+
+		# on EC2
+		docker pull <dockerhubuser>/<contaienr-name>:1.0
+		docker run -d --name portfolio -p 80:80 --restart unless-stopped <dockerhubuser>/<contaienr-name>:1.0
+
+
