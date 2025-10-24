@@ -41,12 +41,31 @@ working with docker
 		sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 		sudo usermod -aG docker $USER
 		# log out and back in or `newgrp docker`
+
+    . secure your Docker-based web app on EC2
+	  # Basic security setup
+		sudo apt update && sudo apt upgrade -y
+		sudo apt install ufw -y
+
+	  # Enable firewall and allow only necessary ports
+		sudo ufw default deny incoming
+		sudo ufw default allow outgoing
+		sudo ufw allow 22/tcp     # SSH
+		sudo ufw allow 80/tcp     # HTTP
+		sudo ufw allow 443/tcp    # HTTPS (for SSL later)
+		sudo ufw enable
     . docker build & run (directly on EC2 instance)
 	  # on the EC2 instance, (git clone first) then in project folder
 		docker build -t <project-name>:latest .
 
 	  # run container (map host 80 → container 80)
-		docker run -d --name <project-name> -p 80:80 --restart unless-stopped <image-name(:tag->):latest>
+		docker run -d --name <project-name> -p 80:80 --restart unless-stopped <image-name : tag>
+
+	  # Stop and remove the old container when new image is available
+		docker pull <image-name:tag>
+		docker stop <image-name> && docker rm <image-name>
+		docker run -d --name <new-image-name> -p 80:80 --restart unless-stopped <image-name:tag>
+
     . docker build & run (first local docker-hub then EC2 instence)
 	 	# locally
 		docker build -t <dockerhubuser>/<contaienr-name>:1.0  .
@@ -55,5 +74,3 @@ working with docker
 		# on EC2
 		docker pull <dockerhubuser>/<contaienr-name>:1.0
 		docker run -d --name portfolio -p 80:80 --restart unless-stopped <dockerhubuser>/<contaienr-name>:1.0
-
-
