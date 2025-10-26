@@ -56,10 +56,10 @@ working with docker
 		sudo ufw enable
     . docker build & run (directly on EC2 instance)
 	  # on the EC2 instance, (git clone first) then in project folder
-		docker build -t <project-name>:latest .
+		docker build -t <image-name : tag>  .
 
 	  # run container (map host 80 → container 80)
-		docker run -d --name <project-name> -p 80:80 --restart unless-stopped <image-name : tag>
+		docker run -d --name <image-name> -p 80:80 --restart unless-stopped <image-name : tag>
 
 	  # Stop and remove the old container when new image is available
 		docker pull <image-name:tag>
