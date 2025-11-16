@@ -29,7 +29,7 @@ module.exports = {
             destination: function (req, file, cb) {
                 const filePath = path.join(__dirname, '../app/assets/images/');
                 fs.mkdirSync(filePath, { recursive: true });
-                cb(null, path.join(__dirname, filePath)); // Save files to this directory
+                cb(null, filePath); // Save files to this directory
             },
             filename: function (req, file, cb) {
                 cb(null, `${Date.now()}-${file.originalname}`); // Custom filename
