@@ -1,0 +1,823 @@
+# using this first build backend then build frontend
+#server config steps
+step :- 1
+	 login to aws, make instences, port mapping
+step :- 2
+	 in instences 
+	 
+		- install docker
+			   # update ubuntu system
+			   sudo apt update && sudo apt upgrade -y
+		   
+			   # Install Docker
+			   curl -fsSL https://get.docker.com -o get-docker.sh
+			   sudo sh get-docker.sh
+			   
+			   # Add user to docker group
+			   sudo usermod -aG docker ubuntu
+			   
+			   # Start Docker
+			   sudo systemctl start docker
+			   sudo systemctl enable docker
+			   
+			   # Verify installation
+			   docker --version
+		   
+		- login with docker userame/password
+step : - 3
+	 Set Up GitHub Actions Runner (Self-Hosted):
+		# Create a directory for the runner
+		mkdir actions-runner && cd actions-runner
+   
+	   # Download the latest runner (check GitHub for latest version)
+	   curl -o actions-runner-linux-x64-2.311.0.tar.gz -L https://github.com/actions/runner/releases/download/v2.311.0/actions-runner-linux-x64-2.311.0.tar.gz
+	   
+	   # Extract
+	   tar xzf ./actions-runner-linux-x64-2.311.0.tar.gz
+	   
+step : - 4	   
+		# Configure the Runner:
+		- Go to your GitHub repo → Settings → Actions → Runners → New self-hosted runner
+
+		example:-
+		Copy the configuration command shown and run it on your EC2:
+			bash   ./config.sh --url https://github.com/YOUR_USERNAME/YOUR_REPO --token YOUR_TOKEN
+			
+step : - 5 
+		# Install Runner as a Service:
+
+		   sudo ./svc.sh install
+		   sudo ./svc.sh start
+		   sudo ./svc.sh status
+		   
+Step : - 6 github changes 
+		#Go to your GitHub repo → Settings → Secrets and variables → Actions
+		Add these secrets:(secrets tab in Repository secrets)
+
+		DOCKER_USERNAME - Your Docker Hub username
+		DOCKER_PASSWORD - Your Docker Hub password/token
+		EC2_HOST - Your EC2 public IP or domain
+		EC2_USERNAME - ubuntu (or ec2-user for Amazon Linux)
+		EC2_SSH_KEY - Contents of your .pem file (entire file content)
+
+step : - 7 fontend.yml and backend.yml files changes
+
+		#example file for frontend
+		step 1:-
+		create fil with folder structure
+		.github/workflows/deploy.yml
+		
+		step 2:-example code
+		
+		name: Build and Deploy Frontend to AWS EC2
+
+		on:
+		  push:
+			branches: [ main, master ]
+		  pull_request:
+			branches: [ main, master ]
+
+		env:
+		  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+		  IMAGE_NAME: reactjs-app
+
+		jobs:
+		  build:
+			runs-on: ubuntu-latest
+			
+			steps:
+			- name: Checkout code
+			  uses: actions/checkout@v3
+			
+			# Create Dockerfile dynamically
+			- name: Create Dockerfile
+			  run: |
+				cat > Dockerfile << 'EOF'
+				# Build stage
+				FROM node:20-alpine AS builder
+				
+				WORKDIR /app
+				
+				# Copy package files
+				COPY package*.json ./
+				
+				# Install dependencies
+				RUN npm ci
+				
+				# Copy all files
+				COPY . .
+				
+				# Set build-time environment variable for API URL (relative path for Nginx proxy)
+				ARG VITE_API_URL=/api
+				ARG REACT_APP_API_URL=/api
+				ENV VITE_API_URL=$VITE_API_URL
+				ENV REACT_APP_API_URL=$REACT_APP_API_URL
+				
+				# Build the app
+				RUN npm run build
+				
+				# Production stage
+				FROM node:20-alpine
+				
+				WORKDIR /app
+				
+				# Install serve to run the build
+				RUN npm install -g serve
+				
+				# Copy build from builder stage
+				COPY --from=builder /app/dist ./dist
+				
+				# Expose port
+				EXPOSE 3000
+				
+				# Health check
+				HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+				  CMD wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1
+				
+				# Start the app
+				CMD ["serve", "-s", "dist", "-l", "3000"]
+				EOF
+			
+			- name: Set up Docker Buildx
+			  uses: docker/setup-buildx-action@v2
+			
+			- name: Login to Docker Hub
+			  uses: docker/login-action@v2
+			  with:
+				username: ${{ secrets.DOCKER_USERNAME }}
+				password: ${{ secrets.DOCKER_PASSWORD }}
+			
+			- name: Build Docker image
+			  run: |
+				docker build -t ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest \
+							 -t ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+							 --build-arg VITE_API_URL=/api \
+							 --build-arg REACT_APP_API_URL=/api \
+							 --build-arg BUILDKIT_INLINE_CACHE=1 .
+			
+			- name: Test Docker image
+			  run: |
+				docker run --rm -d --name reactjs-service \
+				  -p 3000:3000 \
+				  ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+				
+				sleep 10
+				
+				# Check if container is running
+				docker ps | grep reactjs-service || exit 1
+				
+				# Test if app responds
+				curl -f http://localhost:3000 || exit 1
+				
+				# Stop test container
+				docker stop reactjs-service
+			
+			- name: Push Docker image to Docker Hub
+			  run: |
+				docker push ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+				docker push ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+			
+			- name: Image digest
+			  run: echo "✅ Frontend image pushed successfully!"
+
+		  deploy:
+			needs: build
+			runs-on: ubuntu-latest
+			if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push'
+			
+			steps:
+			- name: Deploy to AWS EC2
+			  uses: appleboy/ssh-action@v1.0.0
+			  with:
+				host: ${{ secrets.EC2_HOST }}
+				username: ${{ secrets.EC2_USERNAME }}
+				key: ${{ secrets.EC2_SSH_KEY }}
+				script: |
+				  echo "🚀 Starting frontend deployment on AWS EC2..."
+				  
+				  # Login to Docker Hub
+				  echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+				  
+				  # Pull the latest image
+				  echo "📦 Pulling latest Docker image..."
+				  docker pull ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+				  
+				  # Stop and remove old container if exists
+				  echo "🛑 Stopping old frontend container..."
+				  docker stop reactjs-app 2>/dev/null || true
+				  docker rm reactjs-app 2>/dev/null || true
+				  
+				  # Create Docker network if it doesn't exist
+				  echo "🌐 Setting up Docker network..."
+				  docker network create my-app-network 2>/dev/null || echo "Network already exists"
+				  
+				  # Run new frontend container (NO PORT MAPPING - internal only)
+				  echo "▶️  Starting new frontend container..."
+				  docker run -d \
+					--name reactjs-app \
+					--network my-app-network \
+					--restart unless-stopped \
+					-e VITE_API_URL=/api \
+					-e REACT_APP_API_URL=/api \
+					${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+				  
+				  # Wait for container to start
+				  sleep 5
+				  
+				  # Check if container is running
+				  if docker ps | grep -q reactjs-app; then
+					echo "✅ Frontend container is running successfully!"
+					docker ps | grep reactjs-app
+				  else
+					echo "❌ Frontend container failed to start!"
+					echo "Container logs:"
+					docker logs reactjs-app
+					exit 1
+				  fi
+				  
+				  # Setup Nginx Reverse Proxy
+				  echo "🌐 Setting up Nginx reverse proxy..."
+				  
+				  # Stop old nginx container
+				  docker stop nginx-proxy 2>/dev/null || true
+				  docker rm nginx-proxy 2>/dev/null || true
+				  
+				  # Remove any process using port 80
+				  echo "🔍 Checking for processes on port 80..."
+				  PID=$(ss -tlnp 2>/dev/null | grep ":80 " | awk '{print $6}' | sed 's/.*pid=//;s/,.*//' | head -1)
+				  if [ ! -z "$PID" ]; then
+					echo "⚠️  Found process $PID using port 80, killing it..."
+					sudo kill -9 $PID 2>/dev/null || true
+					sleep 2
+				  fi
+				  
+				  # CRITICAL FIX: Remove old nginx.conf if it exists (could be a directory)
+				  echo "🧹 Cleaning up old nginx configuration..."
+				  sudo rm -rf /tmp/nginx.conf 2>/dev/null || true
+				  
+				  # Create nginx configuration with CORRECT proxy_pass
+				  echo "📝 Creating Nginx configuration..."
+				  cat > /tmp/nginx.conf << 'NGINXEOF'
+				  events {
+					  worker_connections 1024;
+				  }
+				  
+				  http {
+					  # Enable gzip compression
+					  gzip on;
+					  gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+					  
+					  upstream frontend {
+						  server reactjs-app:3000;
+					  }
+					  
+					  upstream backend {
+						  server backend-app:5000;
+					  }
+					  
+					  server {
+						  listen 80;
+						  server_name _;
+						  
+						  # Security headers
+						  add_header X-Frame-Options "SAMEORIGIN" always;
+						  add_header X-Content-Type-Options "nosniff" always;
+						  add_header X-XSS-Protection "1; mode=block" always;
+						  
+						  # Frontend requests (React app)
+						  location / {
+							  proxy_pass http://frontend;
+							  proxy_http_version 1.1;
+							  proxy_set_header Upgrade $http_upgrade;
+							  proxy_set_header Connection 'upgrade';
+							  proxy_set_header Host $host;
+							  proxy_set_header X-Real-IP $remote_addr;
+							  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+							  proxy_set_header X-Forwarded-Proto $scheme;
+							  proxy_cache_bypass $http_upgrade;
+							  
+							  # Timeout settings
+							  proxy_connect_timeout 60s;
+							  proxy_send_timeout 60s;
+							  proxy_read_timeout 60s;
+						  }
+						  
+						  # Backend API requests - KEEPS /api in path
+						  location /api/ {
+							  proxy_pass http://backend/api/;
+							  proxy_http_version 1.1;
+							  proxy_set_header Host $host;
+							  proxy_set_header X-Real-IP $remote_addr;
+							  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+							  proxy_set_header X-Forwarded-Proto $scheme;
+							  
+							  # CORS headers (if needed)
+							  add_header Access-Control-Allow-Origin * always;
+							  add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
+							  add_header Access-Control-Allow-Headers "Authorization, Content-Type" always;
+							  
+							  # Handle preflight requests
+							  if ($request_method = OPTIONS) {
+								  return 204;
+							  }
+							  
+							  # Timeout settings
+							  proxy_connect_timeout 60s;
+							  proxy_send_timeout 60s;
+							  proxy_read_timeout 60s;
+						  }
+
+						  location /PMS/ {
+							proxy_pass http://dotnet-service:6000/PMS/;
+							proxy_http_version 1.1;
+							proxy_set_header Host $host;
+							proxy_set_header X-Real-IP $remote_addr;
+							proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+							proxy_set_header X-Forwarded-Proto $scheme;
+
+							add_header Access-Control-Allow-Origin * always;
+							add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
+							add_header Access-Control-Allow-Headers "Authorization, Content-Type" always;
+
+							if ($request_method = OPTIONS) {
+								return 204;
+							}
+						  }
+						  
+						  # Health check endpoint
+						  location /health {
+							  access_log off;
+							  return 200 "healthy\n";
+							  add_header Content-Type text/plain;
+						  }
+					  }
+				  }
+				  NGINXEOF
+				  
+				  # Verify the file was created correctly
+				  if [ -f /tmp/nginx.conf ]; then
+					echo "✅ Nginx config file created successfully"
+					echo "📄 Config file size: $(wc -l < /tmp/nginx.conf) lines"
+				  else
+					echo "❌ Failed to create nginx.conf"
+					exit 1
+				  fi
+				  
+				  # Start Nginx container
+				  echo "🚀 Starting Nginx reverse proxy..."
+				  docker run -d \
+					--name nginx-proxy \
+					--network my-app-network \
+					-p 80:80 \
+					-v /tmp/nginx.conf:/etc/nginx/nginx.conf:ro \
+					--restart unless-stopped \
+					nginx:alpine
+				  
+				  # Wait for Nginx to start
+				  sleep 5
+				  
+				  # Check if Nginx is running
+				  if docker ps | grep -q nginx-proxy; then
+					echo "✅ Nginx proxy is running successfully!"
+					docker ps | grep nginx-proxy
+				  else
+					echo "❌ Nginx proxy failed to start!"
+					echo "📋 Nginx logs:"
+					docker logs nginx-proxy
+					exit 1
+				  fi
+				  
+				  # Test Nginx configuration
+				  echo "🔍 Testing Nginx configuration..."
+				  if docker exec nginx-proxy nginx -t 2>&1 | grep -q "successful"; then
+					echo "✅ Nginx configuration is valid!"
+				  else
+					echo "⚠️  Nginx configuration may have issues"
+					docker exec nginx-proxy nginx -t
+				  fi
+				  
+				  # Clean up old Docker images (keep last 3)
+				  echo "🧹 Cleaning up old images..."
+				  docker images | grep "${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}" | tail -n +4 | awk '{print $3}' | xargs -r docker rmi -f 2>/dev/null || true
+				  
+				  # Show all running containers
+				  echo "📊 Current running containers:"
+				  docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+				  
+				  echo "🎉 Frontend deployment completed successfully!"
+			
+			- name: Verify Deployment
+			  uses: appleboy/ssh-action@v1.0.0
+			  with:
+				host: ${{ secrets.EC2_HOST }}
+				username: ${{ secrets.EC2_USERNAME }}
+				key: ${{ secrets.EC2_SSH_KEY }}
+				script: |
+				  echo "🔍 Verifying frontend deployment..."
+				  
+				  # Wait a bit more for services to fully start
+				  sleep 5
+				  
+				  # Check frontend container logs
+				  echo "📋 Frontend container logs (last 20 lines):"
+				  docker logs --tail 20 reactjs-app
+				  
+				  # Check Nginx logs
+				  echo "📋 Nginx proxy logs (last 20 lines):"
+				  docker logs --tail 20 nginx-proxy
+				  
+				  # Check container health
+				  echo "🏥 Container health status:"
+				  echo "Frontend: $(docker inspect reactjs-app --format='{{.State.Status}}')"
+				  echo "Nginx: $(docker inspect nginx-proxy --format='{{.State.Status}}')"
+				  echo "Backend: $(docker inspect backend-app --format='{{.State.Status}}' 2>/dev/null || echo 'Not running')"
+				  
+				  # Test if Nginx is responding on port 80
+				  echo "🌐 Testing Nginx on port 80..."
+				  if curl -f http://localhost:80 >/dev/null 2>&1; then
+					echo "✅ Nginx is responding successfully!"
+				  else
+					echo "❌ Nginx is not responding!"
+					exit 1
+				  fi
+				  
+				  # Test frontend through Nginx
+				  echo "🌐 Testing frontend through Nginx..."
+				  if curl -f http://localhost/ >/dev/null 2>&1; then
+					echo "✅ Frontend is accessible through Nginx!"
+					echo "Sample response (first 200 chars):"
+					curl -s http://localhost/ | head -c 200
+					echo ""
+				  else
+					echo "⚠️  Warning: Frontend not responding through Nginx"
+				  fi
+				  
+				  # Test backend API through Nginx
+				  echo "🔗 Testing backend API through Nginx..."
+				  if curl -f http://localhost/api/users >/dev/null 2>&1; then
+					echo "✅ Backend API is accessible through Nginx!"
+					echo "Sample response:"
+					curl -s http://localhost/api/users | head -c 200
+					echo ""
+				  else
+					echo "⚠️  Warning: Backend API not responding (make sure backend is deployed)"
+				  fi
+				  
+				  # Test internal Docker network connectivity
+				  echo "🔗 Testing Docker network connectivity..."
+				  if docker run --rm --network my-app-network alpine/curl:latest -f http://reactjs-app:3000 >/dev/null 2>&1; then
+					echo "✅ Frontend is accessible via Docker network!"
+				  else
+					echo "⚠️  Warning: Cannot reach frontend via Docker network"
+				  fi
+				  
+				  # Show network information
+				  echo "🌐 Docker network information:"
+				  docker network inspect my-app-network --format='{{range .Containers}}{{.Name}}: {{.IPv4Address}}{{"\n"}}{{end}}'
+				  
+				  echo "✅ Verification complete!"
+			
+			- name: Deployment notification
+			  if: always()
+			  run: |
+				if [ "${{ job.status }}" == "success" ]; then
+				  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+				  echo "🎉 ✅ DEPLOYMENT SUCCESSFUL!"
+				  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+				  echo ""
+				  echo "🌍 Your application is now live at:"
+				  echo "   👉 http://${{ secrets.EC2_HOST }}"
+				  echo ""
+				  echo "📡 API endpoint:"
+				  echo "   👉 http://${{ secrets.EC2_HOST }}/api"
+				  echo ""
+				  echo "🔧 Architecture:"
+				  echo "   • Nginx Proxy (Port 80) → Handles all incoming traffic"
+				  echo "   • Frontend (reactjs-app:3000) → Internal Docker network"
+				  echo "   • Backend (backend-app:5000) → Internal Docker network"
+				  echo ""
+				  echo "✨ All services are communicating via Docker network!"
+				  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+				else
+				  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+				  echo "❌ DEPLOYMENT FAILED!"
+				  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+				  echo ""
+				  echo "Please check the logs above for error details."
+				  echo "Common issues:"
+				  echo "  • Docker login failed"
+				  echo "  • Port 80 already in use"
+				  echo "  • Backend container not running"
+				  echo "  • Network connectivity issues"
+				  echo "  • nginx.conf file creation failed"
+				  echo ""
+				  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+				fi
+				
+#example file for backend
+
+			name: Build and Deploy Backend to AWS EC2
+			on:
+			  push:
+				branches: [ main, master ]
+			  pull_request:
+				branches: [ main, master ]
+
+			env:
+			  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+			  IMAGE_NAME: backend-app
+
+			jobs:
+			  build:
+				runs-on: ubuntu-latest
+				
+				steps:
+				- name: Checkout code
+				  uses: actions/checkout@v3
+				
+				# Create Dockerfile dynamically for Node.js backend
+				- name: Create Dockerfile
+				  run: |
+					cat > Dockerfile << 'EOF'
+					# Use Node.js LTS version
+					FROM node:20-alpine
+					
+					WORKDIR /app
+					
+					# Copy package files
+					COPY package*.json ./
+					
+					# Install dependencies
+					RUN npm ci --only=production
+					
+					# Copy application files
+					COPY . .
+					
+					# Create a non-root user for security
+					RUN addgroup -g 1001 -S nodejs && \
+						adduser -S nodejs -u 1001 && \
+						chown -R nodejs:nodejs /app
+					
+					USER nodejs
+					
+					# Expose backend port
+					EXPOSE 5000
+					
+					# Add healthcheck to monitor container health
+					HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+					  CMD node -e "require('http').get('http://localhost:5000/api/users', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" || exit 1
+					
+					# Start the application
+					CMD ["npm", "start"]
+					EOF
+				
+				- name: Set up Docker Buildx
+				  uses: docker/setup-buildx-action@v2
+				
+				- name: Login to Docker Hub
+				  uses: docker/login-action@v2
+				  with:
+					username: ${{ secrets.DOCKER_USERNAME }}
+					password: ${{ secrets.DOCKER_PASSWORD }}
+				
+				- name: Build Docker image
+				  run: |
+					docker build -t ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest \
+								 -t ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+								 --build-arg BUILDKIT_INLINE_CACHE=1 .
+				
+				- name: Test Docker image
+				  run: |
+					echo "🧪 Testing Docker image..."
+					
+					# Run container for testing
+					docker run -d --name backend-service \
+					  -p 5000:5000 \
+					  -e NODE_ENV=test \
+					  -e PORT=5000 \
+					  ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+					
+					echo "⏳ Waiting for container to start..."
+					sleep 15
+					
+					# Check if container is still running
+					if docker ps | grep -q backend-service; then
+					  echo "✅ Container is running successfully!"
+					  
+					  # Test the API endpoint
+					  echo "🌐 Testing API endpoint..."
+					  if curl -f http://localhost:5000/api/users; then
+						echo "✅ API endpoint is responding correctly!"
+					  else
+						echo "⚠️  API endpoint test failed"
+						docker logs backend-service
+						docker stop backend-service
+						docker rm backend-service
+						exit 1
+					  fi
+					  
+					  echo "📋 Container logs:"
+					  docker logs --tail 20 backend-service
+					  
+					  docker stop backend-service
+					  docker rm backend-service
+					else
+					  echo "❌ Container crashed on startup!"
+					  echo ""
+					  echo "📋 Container logs:"
+					  docker logs backend-service 2>&1 || echo "No logs available"
+					  echo ""
+					  echo "🔍 Container inspect:"
+					  docker inspect backend-service --format='{{.State.Status}}: {{.State.Error}}' || true
+					  docker rm backend-service 2>/dev/null || true
+					  exit 1
+					fi
+				
+				- name: Push Docker image to Docker Hub
+				  run: |
+					docker push ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+					docker push ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+				
+				- name: Image digest
+				  run: echo "✅ Backend image pushed successfully!"
+
+			  deploy:
+				needs: build
+				runs-on: ubuntu-latest
+				if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push'
+				
+				steps:
+				- name: Deploy to AWS EC2
+				  uses: appleboy/ssh-action@v1.0.0
+				  with:
+					host: ${{ secrets.EC2_HOST }}
+					username: ${{ secrets.EC2_USERNAME }}
+					key: ${{ secrets.EC2_SSH_KEY }}
+					script: |
+					  echo "🚀 Starting backend deployment on AWS EC2..."
+					  
+					  # Login to Docker Hub
+					  echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+					  
+					  # Pull the latest image
+					  echo "📦 Pulling latest Docker image..."
+					  docker pull ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+					  
+					  # Stop and remove old container if exists
+					  echo "🛑 Stopping old backend container..."
+					  docker stop backend-app 2>/dev/null || true
+					  docker rm backend-app 2>/dev/null || true
+					  
+					  # Create Docker network if it doesn't exist
+					  echo "🌐 Setting up Docker network..."
+					  docker network create my-app-network 2>/dev/null || echo "Network already exists"
+					  
+					  # Run new backend container (NO PORT MAPPING - internal only)
+					  echo "▶️  Starting new backend container..."
+					  docker run -d \
+						--name backend-app \
+						--network my-app-network \
+						--restart unless-stopped \
+						-e NODE_ENV=production \
+						-e PORT=5000 \
+						${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+					  
+					  # Wait for container to start
+					  echo "⏳ Waiting for container to initialize..."
+					  sleep 10
+					  
+					  # Check if container is running
+					  if docker ps | grep -q backend-app; then
+						echo "✅ Backend container is running successfully!"
+						docker ps | grep backend-app
+					  else
+						echo "❌ Backend container failed to start!"
+						echo "Container logs:"
+						docker logs backend-app
+						exit 1
+					  fi
+					  
+					  # Wait for app to fully start
+					  sleep 5
+					  
+					  # Test API from within Docker network (using another container)
+					  echo "🌐 Testing backend API via Docker network..."
+					  if docker run --rm --network my-app-network alpine/curl:latest -f http://backend-app:5000/api/users >/dev/null 2>&1; then
+						echo "✅ Backend API is accessible via Docker network!"
+					  else
+						echo "⚠️  Warning: Backend API not responding yet via Docker network"
+						docker logs backend-app
+					  fi
+					  
+					  # Clean up old Docker images (keep last 3)
+					  echo "🧹 Cleaning up old images..."
+					  docker images | grep "${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}" | tail -n +4 | awk '{print $3}' | xargs -r docker rmi -f 2>/dev/null || true
+					  
+					  # Show container status
+					  echo "📊 Current container status:"
+					  docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "NAME|backend-app"
+					  
+					  echo "🎉 Backend deployment completed successfully!"
+				
+				- name: Verify Deployment
+				  uses: appleboy/ssh-action@v1.0.0
+				  with:
+					host: ${{ secrets.EC2_HOST }}
+					username: ${{ secrets.EC2_USERNAME }}
+					key: ${{ secrets.EC2_SSH_KEY }}
+					script: |
+					  echo "🔍 Verifying backend deployment..."
+					  
+					  # Wait a bit more for full startup
+					  sleep 3
+					  
+					  # Check container logs (last 30 lines)
+					  echo "📋 Backend container logs:"
+					  docker logs --tail 30 backend-app
+					  
+					  # Check container health
+					  echo "🏥 Container health status:"
+					  HEALTH_STATUS=$(docker inspect backend-app --format='{{.State.Health.Status}}' 2>/dev/null || echo "no healthcheck")
+					  STATE_STATUS=$(docker inspect backend-app --format='{{.State.Status}}')
+					  echo "Health: $HEALTH_STATUS"
+					  echo "State: $STATE_STATUS"
+					  
+					  # Test backend via Docker network (simulate Nginx calling backend)
+					  echo "🔗 Testing backend via Docker network (as Nginx would)..."
+					  if docker run --rm --network my-app-network alpine/curl:latest -f -s http://backend-app:5000/api/users >/dev/null 2>&1; then
+						echo "✅ Backend API is accessible via Docker network!"
+						echo "Sample API response:"
+						docker run --rm --network my-app-network alpine/curl:latest -s http://backend-app:5000/api/users | head -n 10
+					  else
+						echo "⚠️  Warning: Backend not responding via Docker network"
+						echo "Container may still be starting up..."
+					  fi
+					  
+					  # Check Docker network configuration
+					  echo "🌐 Docker network configuration:"
+					  docker network inspect my-app-network --format='{{range .Containers}}{{.Name}}: {{.IPv4Address}}{{"\n"}}{{end}}'
+					  
+					  # Check if Nginx proxy exists and can reach backend
+					  if docker ps | grep -q nginx-proxy; then
+						echo "🔗 Testing backend through Nginx proxy..."
+						if curl -f -s http://localhost/api/users >/dev/null 2>&1; then
+						  echo "✅ Backend is accessible through Nginx proxy!"
+						else
+						  echo "⚠️  Backend not yet accessible through Nginx (may need Nginx restart)"
+						fi
+					  else
+						echo "ℹ️  Nginx proxy not running yet (will be deployed with frontend)"
+					  fi
+					  
+					  echo "✅ Backend verification complete!"
+				
+				- name: Deployment notification
+				  if: always()
+				  run: |
+					if [ "${{ job.status }}" == "success" ]; then
+					  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+					  echo "🎉 ✅ BACKEND DEPLOYMENT SUCCESSFUL!"
+					  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+					  echo ""
+					  echo "🔧 Backend Configuration:"
+					  echo "   • Container: backend-app"
+					  echo "   • Internal Port: 5000"
+					  echo "   • Network: my-app-network (internal only)"
+					  echo "   • No direct external access (security best practice)"
+					  echo ""
+					  echo "🌐 Access Methods:"
+					  echo "   • Via Nginx Proxy: http://${{ secrets.EC2_HOST }}/api"
+					  echo "   • Within Docker Network: http://backend-app:5000"
+					  echo ""
+					  echo "📝 Next Steps:"
+					  echo "   1. Deploy frontend to complete the setup"
+					  echo "   2. Frontend will access backend via: /api"
+					  echo "   3. Nginx will route /api/* to backend-app:5000"
+					  echo ""
+					  echo "✨ Backend is ready and waiting for frontend deployment!"
+					  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+					else
+					  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+					  echo "❌ BACKEND DEPLOYMENT FAILED!"
+					  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+					  echo ""
+					  echo "Please check the logs above for error details."
+					  echo "Common issues:"
+					  echo "  • Docker login failed"
+					  echo "  • Container crashed on startup"
+					  echo "  • Missing environment variables"
+					  echo "  • Application code errors"
+					  echo ""
+					  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+					fi
+		
+		
+step :- 7 after this call api in frontend using give 
+	      example:- 
+			await axios.get('/api/users')
+		  // no need to use domain or public ip at the time of calling the api 
+		  
+step :- 8 
+		  when another backend service call to internally another backend service
+		  must set path(route) in the nginx configuration.
+		  example :- set dotnet configuration on nginx file 
